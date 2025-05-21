@@ -38,7 +38,7 @@ class LoginController extends Controller
                 return redirect()->route('admin.forms.index');
             }
 
-            return redirect()->route('guest.forms.index');
+            return redirect()->route('public.forms.index');
         }
 
         return back()->withErrors([

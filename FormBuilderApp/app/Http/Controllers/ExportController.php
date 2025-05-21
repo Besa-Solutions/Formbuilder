@@ -231,7 +231,21 @@ class ExportController extends Controller
             Log::info('Preparing to save file');
             $directory = storage_path('app/public');
             if (!file_exists($directory)) {
-                mkdir($directory, 0755, true);
+                try {
+                    Log::info('Creating storage directory', ['path' => $directory]);
+                    mkdir($directory, 0755, true);
+                } catch (\Exception $e) {
+                    Log::error('Failed to create storage directory', [
+                        'directory' => $directory,
+                        'error' => $e->getMessage()
+                    ]);
+                    return redirect()->back()->with('error', 'Export failed: Unable to create storage directory');
+                }
+            }
+            
+            if (!is_writable($directory)) {
+                Log::error('Storage directory not writable', ['directory' => $directory]);
+                return redirect()->back()->with('error', 'Export failed: Storage directory not writable');
             }
             
             // Create Excel file
@@ -240,7 +254,21 @@ class ExportController extends Controller
             $filepath = $directory . '/' . $filename;
             
             Log::info('Saving Excel file', ['path' => $filepath]);
-            $writer->save($filepath);
+            try {
+                $writer->save($filepath);
+            } catch (\Exception $e) {
+                Log::error('Failed to save Excel file', [
+                    'filepath' => $filepath,
+                    'error' => $e->getMessage()
+                ]);
+                return redirect()->back()->with('error', 'Export failed: Unable to save Excel file - ' . $e->getMessage());
+            }
+            
+            // Verify file was created
+            if (!file_exists($filepath)) {
+                Log::error('Export file was not created', ['filepath' => $filepath]);
+                return redirect()->back()->with('error', 'Export failed: File could not be created');
+            }
             
             Log::info('Export completed', ['form_id' => $form_id, 'file' => $filepath]);
             
@@ -265,96 +293,150 @@ class ExportController extends Controller
     }
     
     /**
-     * Extract headers from the form
+     * Get form headers from JSON structure
      */
     private function getFormHeaders($form)
     {
-        Log::info('Extracting form headers', ['form_id' => $form->id]);
+        // Log the form builder JSON structure
+        Log::info('Getting form headers', [
+            'form_id' => $form->id,
+            'form_builder_json_type' => gettype($form->form_builder_json)
+        ]);
         
-        // Try various approaches to get the form structure
-        $headers = [];
+        // Ensure form_builder_json is an array
+        $formData = $form->form_builder_json;
         
-        // First, check if the form_builder_json field exists and is not null
-        if (isset($form->form_builder_json)) {
-            $json = $form->form_builder_json;
+        // If it's a string, decode it
+        if (is_string($formData)) {
+            $formData = json_decode($formData, true);
+            Log::info('Decoded form builder JSON', ['decoded_type' => gettype($formData)]);
+        }
+        
+        // If it's still not an array or is null, try more approaches
+        if (!is_array($formData) || is_null($formData)) {
+            Log::warning('JSON decode failed, attempting alternative approaches');
             
-            // Convert string to array if needed
-            if (is_string($json)) {
-                $json = json_decode($json, true);
-                Log::info('Decoded form JSON from string', ['json_type' => gettype($json)]);
-            }
-            
-            // Structure 1: Form JSON with 'fields' property
-            if (is_array($json) && isset($json['fields']) && is_array($json['fields'])) {
-                Log::info('Found fields property in form JSON', ['fields_count' => count($json['fields'])]);
-                
-                foreach ($json['fields'] as $field) {
-                    if (isset($field['name'])) {
-                        $headers[] = [
-                            'name' => $field['name'],
-                            'label' => $field['label'] ?? ucfirst($field['name']),
-                            'type' => $field['type'] ?? 'text'
-                        ];
-                    }
+            // Try getting form builder array attribute
+            try {
+                if (method_exists($form, 'getFormBuilderArrayAttribute')) {
+                    $formData = $form->getFormBuilderArrayAttribute(null);
+                    Log::info('Retrieved from FormBuilderArrayAttribute', ['result_type' => gettype($formData)]);
                 }
+            } catch (\Exception $e) {
+                Log::error('Error getting form builder array', ['error' => $e->getMessage()]);
             }
-            // Structure 2: Form JSON is directly an array of fields
-            elseif (is_array($json)) {
-                foreach ($json as $field) {
-                    if (is_array($field) && isset($field['name'])) {
-                        $headers[] = [
-                            'name' => $field['name'],
-                            'label' => $field['label'] ?? ucfirst($field['name']),
-                            'type' => $field['type'] ?? 'text'
-                        ];
+            
+            // If still not successful, try getting from entries header method
+            if ((!is_array($formData) || empty($formData)) && method_exists($form, 'getEntriesHeader')) {
+                try {
+                    $headers = $form->getEntriesHeader();
+                    if ($headers && $headers->count() > 0) {
+                        Log::info('Retrieved from getEntriesHeader', ['count' => $headers->count()]);
+                        return $headers->toArray();
                     }
+                } catch (\Exception $e) {
+                    Log::error('Error getting entries header', ['error' => $e->getMessage()]);
                 }
             }
         }
         
-        // If we still don't have headers, try to get them from a sample submission
-        if (empty($headers)) {
-            Log::info('No headers found in form_builder_json, checking submissions');
+        // Now process the array data (if we have it)
+        if (is_array($formData)) {
+            Log::info('Processing form data array', ['keys' => array_keys($formData)]);
             
-            // Try to get headers from the first submission's content
+            // Case 1: Direct 'fields' array
+            if (isset($formData['fields'])) {
+                Log::info('Found fields key in form data', ['count' => count($formData['fields'])]);
+                
+                return collect($formData['fields'])
+                    ->filter(function ($field) {
+                        return isset($field['name']);
+                    })
+                    ->map(function ($field) {
+                        return [
+                            'name' => $field['name'],
+                            'label' => $field['label'] ?? ucfirst($field['name']),
+                            'type' => $field['type'] ?? 'text',
+                        ];
+                    })
+                    ->toArray();
+            }
+            
+            // Case 2: Array of fields directly
+            $fields = collect($formData)
+                ->filter(function ($field) {
+                    return is_array($field) && isset($field['name']);
+                });
+                
+            if ($fields->count() > 0) {
+                Log::info('Found direct field objects', ['count' => $fields->count()]);
+                
+                return $fields->map(function ($field) {
+                    return [
+                        'name' => $field['name'],
+                        'label' => $field['label'] ?? ucfirst($field['name']),
+                        'type' => $field['type'] ?? 'text',
+                    ];
+                })->toArray();
+            }
+        }
+        
+        // Last resort: check a submission and extract fields from there
+        try {
             $submission = null;
             
+            // Try to get submission from Form model
             try {
-                // Try with App\Models\Submission
-                $submission = \App\Models\Submission::where('form_id', $form->id)->first();
+                $submission = \App\Models\FormSubmission::where('form_id', $form->id)->first();
             } catch (\Exception $e) {
+                Log::info('Error getting FormSubmission, trying vendor model', ['error' => $e->getMessage()]);
+            }
+            
+            // Try vendor model if Form model failed
+            if (!$submission) {
                 try {
-                    // Try with vendor Submission
-                    $submission = VendorSubmission::where('form_id', $form->id)->first();
-                } catch (\Exception $e2) {
-                    Log::warning('No submissions found for form', ['form_id' => $form->id]);
+                    $submission = \doode\FormBuilder\Models\Submission::where('form_id', $form->id)->first();
+                } catch (\Exception $e) {
+                    Log::info('Error getting vendor Submission', ['error' => $e->getMessage()]);
                 }
             }
             
             if ($submission) {
                 $content = $submission->content;
-                
-                // Convert string content to array if needed
                 if (is_string($content)) {
                     $content = json_decode($content, true);
                 }
                 
-                if (is_array($content)) {
-                    Log::info('Getting headers from submission content', ['keys_count' => count(array_keys($content))]);
+                if (is_array($content) && !empty($content)) {
+                    Log::info('Extracted fields from submission content', [
+                        'field_count' => count($content),
+                        'fields' => array_keys($content)
+                    ]);
                     
-                    foreach ($content as $key => $value) {
-                        $headers[] = [
+                    return collect($content)->map(function ($value, $key) {
+                        // Clean up the key to get a more human-readable label
+                        $label = ucfirst(str_replace(['-', '_'], ' ', $key));
+                        
+                        return [
                             'name' => $key,
-                            'label' => ucfirst(str_replace('_', ' ', $key)),
-                            'type' => 'text'
+                            'label' => $label,
+                            'type' => 'text', // Default to text as we can't determine the real type
                         ];
-                    }
+                    })->values()->toArray();
                 }
             }
+        } catch (\Exception $e) {
+            Log::error('Error extracting fields from submission', ['error' => $e->getMessage()]);
         }
         
-        Log::info('Extracted headers', ['count' => count($headers)]);
-        return $headers;
+        // Log failure
+        Log::warning('Could not extract form headers', [
+            'form_id' => $form->id,
+            'form_builder_json_type' => gettype($form->form_builder_json),
+        ]);
+        
+        // Fallback to an empty array if structure is unexpected
+        return [];
     }
 
     /**

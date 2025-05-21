@@ -13,6 +13,7 @@ use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\TrackFormAnalytics;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\FileDownloadController;
+use App\Http\Controllers\ExportController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -76,7 +77,7 @@ Route::group(['middleware' => ['web', 'auth', CheckRole::class . ':admin'], 'pre
     Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
     // Export submissions to Excel (admin)
-    Route::get('forms/{form_id}/submissions/export', [\App\Http\Controllers\VendorSubmissionController::class, 'exportToExcel'])
+    Route::get('forms/{form_id}/submissions/export', [VendorSubmissionController::class, 'exportToExcel'])
         ->name('forms.submissions.export')
         ->middleware(['auth', 'verified']);
 });
@@ -127,9 +128,9 @@ Route::group(['middleware' => ['web', 'auth'], 'prefix' => 'form-builder', 'as' 
     // My Submissions route
     Route::get('my-submissions', [VendorSubmissionController::class, 'mySubmissions'])->name('my-submissions.index');
 
-    // Form submissions routes
+    // Form submissions routes - Fix the duplicate route name by using a different name for formbuilder
     Route::get('forms/{form_id}/submissions/export', [VendorSubmissionController::class, 'exportToExcel'])
-        ->name('formbuilder::forms.submissions.export')
+        ->name('vendor.forms.submissions.export')
         ->middleware(['auth', 'verified']);
 });
 
@@ -139,3 +140,49 @@ Route::post('test-upload/{identifier}', [RenderFormController::class, 'processTe
 
 // File download route
 Route::get('download-file/{submission}/{field?}', [FileDownloadController::class, 'download'])->name('download.file');
+
+// Direct export route using ExportController
+Route::get('admin/forms/{form_id}/export-excel', [ExportController::class, 'exportFormSubmissions'])
+    ->name('admin.forms.export.excel')
+    ->middleware(['auth', 'verified']);
+
+// Test export route - no authentication required for testing
+Route::get('test-export/{form_id}', [ExportController::class, 'directExport'])
+    ->name('test.export');
+
+// Simple storage test route
+Route::get('test-storage', function() {
+    try {
+        // Create directory if it doesn't exist
+        $directory = storage_path('app/public');
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
+        }
+        
+        // Create a test file
+        $filename = 'test_' . date('Y-m-d_His') . '.txt';
+        $filepath = $directory . '/' . $filename;
+        $content = "This is a test file created at " . date('Y-m-d H:i:s') . "\n";
+        $content .= "Storage path: " . $directory . "\n";
+        $content .= "File path: " . $filepath . "\n";
+        
+        // Write to the file
+        file_put_contents($filepath, $content);
+        
+        // Check if file was created
+        if (file_exists($filepath)) {
+            return response()->download($filepath, $filename)->deleteFileAfterSend(true);
+        } else {
+            return response()->json([
+                'error' => 'Failed to create file',
+                'path' => $filepath
+            ], 500);
+        }
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ], 500);
+    }
+})->name('test.storage');

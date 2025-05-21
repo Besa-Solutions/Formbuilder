@@ -24,12 +24,18 @@ class DashboardController extends Controller
      */
     public function index()
     {
-        $user = Auth::user();
-        
-        if ($user->isAdmin()) {
-            return redirect()->route('admin.forms.index');
+        if (Auth::check()) {
+            $user = Auth::user();
+            
+            if ($user->role === 'admin') {
+                // Redirect to admin dashboard
+                return redirect()->route('admin.forms.index');
+            } else {
+                // Redirect to public forms
+                return redirect()->route('public.forms.index');
+            }
         }
         
-        return redirect()->route('guest.forms.index');
+        return redirect()->route('login');
     }
 }

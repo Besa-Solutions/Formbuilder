@@ -1,43 +1,55 @@
-@extends('layouts.app')
-
-@section('content')
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-10">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="mb-0 text-danger">Error</h4>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-danger">
-                        <h5>{{ $message }}</h5>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Form Builder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">An error occurred</h5>
                     </div>
-                    
-                    <div class="mt-4">
-                        <h6>Debug Information:</h6>
-                        <div class="bg-light p-3 rounded">
-                            <p><strong>File:</strong> {{ $file }}</p>
-                            <p><strong>Line:</strong> {{ $line }}</p>
+                    <div class="card-body">
+                        <div class="alert alert-danger">
+                            <strong>Error Message:</strong> {{ $message ?? 'Unknown error' }}
                         </div>
                         
-                        <h6 class="mt-3">Stack Trace:</h6>
-                        <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto">
-                            <pre>{{ $trace }}</pre>
+                        @if(isset($file) && isset($line))
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                Error Location
+                            </div>
+                            <div class="card-body">
+                                <p><strong>File:</strong> {{ $file }}</p>
+                                <p><strong>Line:</strong> {{ $line }}</p>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="mt-4">
-                        <a href="{{ url()->previous() }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left mr-1"></i> Go Back
-                        </a>
+                        @endif
                         
-                        <a href="{{ url('/') }}" class="btn btn-primary ml-2">
-                            <i class="fas fa-home mr-1"></i> Home
-                        </a>
+                        @if(isset($trace))
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                Stack Trace
+                            </div>
+                            <div class="card-body">
+                                <pre class="bg-light p-3 border rounded"><code>{{ $trace }}</code></pre>
+                            </div>
+                        </div>
+                        @endif
+                        
+                        <div class="mt-4 text-center">
+                            <a href="{{ url()->previous() }}" class="btn btn-primary">Go Back</a>
+                            <a href="{{ url('/') }}" class="btn btn-secondary ms-2">Go to Homepage</a>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-@endsection 
+</body>
+</html> 

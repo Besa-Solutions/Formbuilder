@@ -10,8 +10,11 @@
                         {{ $pageTitle }} ({{ $submissions->count() }})
                     </h5>
                     <div>
-                        <a href="{{ route('formbuilder::forms.submissions.export', $form->id) }}" class="btn btn-success">
+                        <a href="{{ route('vendor.forms.submissions.export', $form->id) }}" class="btn btn-success">
                             <i class="fas fa-file-excel me-1"></i> {{ __('Export to Excel') }}
+                        </a>
+                        <a href="{{ route('admin.forms.export.excel', $form->id) }}" class="btn btn-primary">
+                            <i class="fas fa-file-excel me-1"></i> {{ __('Alternative Export') }}
                         </a>
                         <a href="{{ route('formbuilder::forms.index') }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left me-1"></i> {{ __('Back to Forms') }}

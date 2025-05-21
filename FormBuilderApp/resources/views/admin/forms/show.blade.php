@@ -11,9 +11,6 @@
                         <a href="{{ route('public.form.render', $form->identifier ?? '') }}" class="btn btn-info btn-sm me-2" target="_blank">
                             <i class="fas fa-eye me-1"></i> {{ __('Preview') }}
                         </a>
-                        <a href="{{ route('admin.forms.edit', $form->id ?? 0) }}" class="btn btn-primary btn-sm me-2">
-                            <i class="fas fa-edit me-1"></i> {{ __('Edit') }}
-                        </a>
                         <a href="{{ route('admin.forms.index') }}" class="btn btn-secondary btn-sm">
                             <i class="fas fa-arrow-left me-1"></i> {{ __('Back to Forms') }}
                         </a>
@@ -105,7 +102,7 @@
                         <a href="{{ route('admin.forms.analytics', $form->id ?? 0) }}" class="btn btn-success">
                             <i class="fas fa-chart-line me-2"></i> {{ __('Analytics') }}
                         </a>
-                        <a href="{{ route('admin.forms.submissions.export', $form->id) }}" class="btn btn-warning">
+                        <a href="{{ route('admin.forms.export.excel', $form->id) }}" class="btn btn-warning">
                             <i class="fas fa-file-excel me-2"></i> Export to Excel
                         </a>
                         <form action="{{ route('admin.forms.destroy', $form->id ?? 0) }}" method="POST" class="d-inline">

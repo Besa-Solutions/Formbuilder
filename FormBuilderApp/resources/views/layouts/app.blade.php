@@ -109,8 +109,7 @@
                                     </a>
                                 </li>
                             @endif
-                            @if(Auth::user()->isGuest())
-                                
+                            @if(Auth::user()->isGuest())                               
                                 <li class="nav-item">
                                     <a class="nav-link" href="{{ route('guest.my-submissions') }}">
                                         <i class="fas fa-paper-plane me-1"></i> {{ __('My Submissions') }}
