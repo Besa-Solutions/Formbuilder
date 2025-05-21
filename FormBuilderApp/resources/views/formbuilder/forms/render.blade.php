@@ -26,7 +26,7 @@
                         </div>
                     @endif
 
-                    <form id="render-form" method="POST" action="{{ route('public.form.submit', $form->identifier) }}">
+                    <form id="render-form" method="POST" action="{{ route('public.form.submit', $form->identifier) }}" enctype="multipart/form-data">
                         @csrf
                         <div id="form-render"></div>
                         <div class="mt-4">
@@ -51,11 +51,28 @@
         
         // Fix form submission by intercepting it
         $('#render-form').on('submit', function(e) {
+            // Check for file inputs
+            var hasFiles = $('input[type="file"]').length > 0;
+            var fileSelected = false;
+            
+            // Check if any files are selected
+            $('input[type="file"]').each(function() {
+                if (this.files && this.files.length > 0) {
+                    fileSelected = true;
+                    return false; // Exit the loop
+                }
+            });
+            
             // Get all form fields
             var formFields = $('#render-form').serializeArray();
             
-            // Make sure we have data
-            if (formFields.length <= 1) { // Just _token would be length 1
+            // If this is a file upload form and we have files selected, allow submission
+            if (hasFiles && fileSelected) {
+                return true;
+            }
+            
+            // For non-file forms, make sure we have data
+            if (formFields.length <= 1 && !fileSelected) { // Just _token would be length 1
                 e.preventDefault();
                 alert('Please fill out the form before submitting.');
                 return false;

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class FormSubmission extends Model
 {
@@ -64,5 +65,61 @@ class FormSubmission extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+    
+    /**
+     * Get the download URL for a specific file field
+     *
+     * @param string $fieldName
+     * @return string|null
+     */
+    public function getFileDownloadUrl($fieldName)
+    {
+        if (empty($this->files_meta) || !isset($this->files_meta[$fieldName])) {
+            return null;
+        }
+        
+        $fileMeta = $this->files_meta[$fieldName];
+        
+        if (isset($fileMeta['path'])) {
+            return asset('storage/' . $fileMeta['path']);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Check if this submission has attached files
+     *
+     * @return bool
+     */
+    public function hasFiles()
+    {
+        return !empty($this->files_meta);
+    }
+    
+    /**
+     * Get all files attached to this submission
+     *
+     * @return array
+     */
+    public function getFiles()
+    {
+        if (empty($this->files_meta)) {
+            return [];
+        }
+        
+        $files = [];
+        
+        foreach ($this->files_meta as $fieldName => $meta) {
+            $files[$fieldName] = [
+                'name' => $meta['original_name'] ?? 'Unknown File',
+                'mime_type' => $meta['mime_type'] ?? 'application/octet-stream',
+                'size' => $meta['size'] ?? 0,
+                'url' => asset('storage/' . ($meta['path'] ?? ''))
+            ];
+        }
+        
+        return $files;
     }
 } 

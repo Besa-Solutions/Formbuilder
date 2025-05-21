@@ -35,7 +35,7 @@ class RenderFormController extends Controller
         $formData = $request->except('_token');
         
         // Check if we have form data
-        if (empty($formData)) {
+        if (empty($formData) && !$request->hasFile('filedownloader')) {
             return back()->withErrors(['content' => 'Please fill out the form before submitting.']);
         }
         
@@ -48,7 +48,71 @@ class RenderFormController extends Controller
             $completionTime = $startTime->diffInSeconds(Carbon::now());
         }
         
+        // Process files if present
+        $filesMeta = [];
+        $formContent = is_string($form->form_builder_json) 
+            ? json_decode($form->form_builder_json, true) 
+            : $form->form_builder_json;
+            
+        $fields = $formContent['fields'] ?? [];
+        
+        // Log file information for debugging
+        Log::info('Processing form submission', [
+            'form_id' => $form->id,
+            'has_files' => $request->hasFile('filedownloader'),
+            'all_files' => $request->allFiles(),
+            'form_fields' => $fields
+        ]);
+        
+        // Check if we have the direct file upload field (simplified check)
+        if ($request->hasFile('filedownloader')) {
+            $file = $request->file('filedownloader');
+            $path = $file->store('form_submissions/' . $form->id, 'public');
+            
+            $filesMeta['filedownloader'] = [
+                'original_name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ];
+            
+            $formData['filedownloader'] = $path;
+            
+            Log::info('File uploaded successfully', [
+                'original_name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'size' => $file->getSize()
+            ]);
+        }
+        
+        // Check general form fields for file uploads
+        foreach ($fields as $field) {
+            $fieldName = $field['name'] ?? '';
+            // Process file uploads for file fields
+            if ($field['type'] === 'file' && $request->hasFile($fieldName)) {
+                $file = $request->file($fieldName);
+                $path = $file->store('form_submissions/' . $form->id, 'public');
+                
+                $filesMeta[$fieldName] = [
+                    'original_name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                ];
+                
+                // Store the file path in the form data
+                $formData[$fieldName] = $path;
+                
+                Log::info("Field $fieldName uploaded successfully", [
+                    'original_name' => $file->getClientOriginalName(),
+                    'path' => $path
+                ]);
+            }
+        }
+        
         // Create the submission with all necessary fields
+        $filesMetaJson = !empty($filesMeta) ? json_encode($filesMeta) : null;
+        
         $submission = FormSubmission::create([
             'form_id' => $form->id,
             'user_id' => Auth::check() ? Auth::id() : null,
@@ -60,7 +124,8 @@ class RenderFormController extends Controller
             'is_anonymous' => !Auth::check(),
             'started_at' => $startTime,
             'completed_at' => now(),
-            'status' => 'new'
+            'status' => 'new',
+            'files_meta' => $filesMetaJson,
         ]);
 
         Log::info('Form submission created', [
@@ -68,6 +133,8 @@ class RenderFormController extends Controller
             'submission_id' => $submission->id,
             'user_id' => Auth::id() ?? 'guest',
             'completion_time' => $completionTime,
+            'has_files' => !empty($filesMeta),
+            'files_meta' => $filesMetaJson
         ]);
         
         // Track form completion in analytics
@@ -177,5 +244,74 @@ class RenderFormController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
         }
+    }
+
+    /**
+     * Show the test upload form
+     */
+    public function testUpload($identifier)
+    {
+        $form = VendorForm::where('identifier', $identifier)->firstOrFail();
+        return view('formbuilder.forms.test-upload', compact('form'));
+    }
+    
+    /**
+     * Process a test file upload
+     */
+    public function processTestUpload(Request $request, $identifier)
+    {
+        $form = VendorForm::where('identifier', $identifier)->firstOrFail();
+        
+        if (!$request->hasFile('filedownloader')) {
+            return back()->withErrors(['filedownloader' => 'Please select a file to upload.']);
+        }
+        
+        $file = $request->file('filedownloader');
+        $path = $file->store('form_submissions/' . $form->id, 'public');
+        
+        $filesMeta = [
+            'filedownloader' => [
+                'original_name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ]
+        ];
+        
+        $formData = [
+            'filedownloader' => $path
+        ];
+        
+        // Log file information
+        Log::info('Test file uploaded successfully', [
+            'original_name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'size' => $file->getSize()
+        ]);
+        
+        // Create the submission with all necessary fields
+        $submission = FormSubmission::create([
+            'form_id' => $form->id,
+            'user_id' => Auth::check() ? Auth::id() : null,
+            'form_version' => $form->version ?? 1,
+            'content' => json_encode($formData),
+            'submission_ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'is_complete' => true,
+            'is_anonymous' => !Auth::check(),
+            'started_at' => now(),
+            'completed_at' => now(),
+            'status' => 'new',
+            'files_meta' => json_encode($filesMeta),
+        ]);
+        
+        Log::info('Test submission created', [
+            'form_id' => $form->id,
+            'submission_id' => $submission->id,
+            'file_path' => $path
+        ]);
+        
+        return redirect()->route('formbuilder::forms.submissions.show', [$form->id, $submission->id])
+            ->with('success', 'File uploaded successfully. You can download it from this submission.');
     }
 } 

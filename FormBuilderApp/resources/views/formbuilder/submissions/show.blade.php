@@ -34,18 +34,76 @@
                                             
                                         // Ensure content is an array
                                         if (!is_array($content)) $content = [];
+                                        
+                                        // Debug files_meta
+                                        $filesMeta = is_array($submission->files_meta) 
+                                            ? $submission->files_meta 
+                                            : json_decode($submission->files_meta, true);
                                     @endphp
                                     
                                     @foreach($content as $key => $value)
                                         <tr>
                                             <td>{{ ucfirst(str_replace('_', ' ', $key)) }}</td>
-                                            <td>{{ is_array($value) ? implode(', ', $value) : $value }}</td>
+                                            <td>
+                                                @if($filesMeta && isset($filesMeta[$key]))
+                                                    <a href="{{ asset('storage/' . $filesMeta[$key]['path']) }}" class="btn btn-sm btn-primary" target="_blank">
+                                                        <i class="fas fa-download me-1"></i> 
+                                                        {{ $filesMeta[$key]['original_name'] }}
+                                                        ({{ round($filesMeta[$key]['size'] / 1024) }} KB)
+                                                    </a>
+                                                @else
+                                                    {{ is_array($value) ? implode(', ', $value) : $value }}
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                             </table>
                         </div>
                     </div>
+
+                    <!-- Debug Information Section -->
+                    <div class="mb-4">
+                        <h4>Debug Information</h4>
+                        <div class="alert alert-info">
+                            <p><strong>Has Files Method Result:</strong> {{ $submission->hasFiles() ? 'Yes' : 'No' }}</p>
+                            <p><strong>Files Meta Raw:</strong> <code>{{ json_encode($submission->files_meta) }}</code></p>
+                        </div>
+                    </div>
+
+                    @if(!empty($filesMeta))
+                    <div class="mb-4">
+                        <h4>Attached Files</h4>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Field</th>
+                                        <th>File Name</th>
+                                        <th>Size</th>
+                                        <th>Type</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($filesMeta as $fieldName => $fileMeta)
+                                        <tr>
+                                            <td>{{ ucfirst(str_replace('_', ' ', $fieldName)) }}</td>
+                                            <td>{{ $fileMeta['original_name'] ?? 'Unknown' }}</td>
+                                            <td>{{ isset($fileMeta['size']) ? round($fileMeta['size'] / 1024) . ' KB' : 'Unknown' }}</td>
+                                            <td>{{ $fileMeta['mime_type'] ?? 'Unknown' }}</td>
+                                            <td>
+                                                <a href="{{ asset('storage/' . ($fileMeta['path'] ?? '')) }}" class="btn btn-sm btn-primary" target="_blank">
+                                                    <i class="fas fa-download me-1"></i> Download
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    @endif
 
                     <div class="mt-4">
                         <a href="{{ route('formbuilder::forms.submissions.index', $form->id) }}" class="btn btn-secondary">

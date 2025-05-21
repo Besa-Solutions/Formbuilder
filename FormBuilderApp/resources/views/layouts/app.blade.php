@@ -110,11 +110,7 @@
                                 </li>
                             @endif
                             @if(Auth::user()->isGuest())
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ route('guest.forms.index') }}">
-                                        <i class="fas fa-file-alt me-1"></i> {{ __('Available Forms') }}
-                                    </a>
-                                </li>
+                                
                                 <li class="nav-item">
                                     <a class="nav-link" href="{{ route('guest.my-submissions') }}">
                                         <i class="fas fa-paper-plane me-1"></i> {{ __('My Submissions') }}

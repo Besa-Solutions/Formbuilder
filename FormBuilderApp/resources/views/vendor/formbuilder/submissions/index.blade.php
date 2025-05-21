@@ -50,6 +50,10 @@
                                             <a href="{{ route('formbuilder::forms.submissions.show', [$form, $submission->id]) }}" class="btn btn-primary btn-sm" title="View submission">
                                                 <i class="fa fa-eye"></i> View
                                             </a> 
+                                            
+                                            <a href="{{ route('download.file', $submission->id) }}" class="btn btn-success btn-sm" title="Download files">
+                                                <i class="fa fa-download"></i> Files
+                                            </a>
 
                                             <form action="{{ route('formbuilder::forms.submissions.destroy', [$form, $submission]) }}" method="POST" id="deleteSubmissionForm_{{ $submission->id }}" class="d-inline-block">
                                                 @csrf 

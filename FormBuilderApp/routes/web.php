@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\TrackFormAnalytics;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\FileDownloadController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -131,3 +132,10 @@ Route::group(['middleware' => ['web', 'auth'], 'prefix' => 'form-builder', 'as' 
         ->name('formbuilder::forms.submissions.export')
         ->middleware(['auth', 'verified']);
 });
+
+// Test upload route
+Route::get('test-upload/{identifier}', [RenderFormController::class, 'testUpload'])->name('test.upload');
+Route::post('test-upload/{identifier}', [RenderFormController::class, 'processTestUpload'])->name('test.upload.process');
+
+// File download route
+Route::get('download-file/{submission}/{field?}', [FileDownloadController::class, 'download'])->name('download.file');

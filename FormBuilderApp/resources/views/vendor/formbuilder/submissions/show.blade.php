@@ -73,6 +73,99 @@
                     @endif
                 </ul>
             </div>
+            
+            @php
+                // Get file metadata with proper type handling
+                if (is_string($submission->files_meta)) {
+                    // Try to decode the JSON string
+                    $filesMeta = json_decode($submission->files_meta, true);
+                } elseif (is_array($submission->files_meta)) {
+                    // Already an array
+                    $filesMeta = $submission->files_meta;
+                } else {
+                    // Not a string or array, set to empty array
+                    $filesMeta = [];
+                }
+            @endphp
+            
+            @if(!empty($filesMeta) && is_array($filesMeta))
+            <div class="card rounded-0 mt-4">
+                <div class="card-header">
+                    <h5 class="card-title">Attached Files</h5>
+                </div>
+                <ul class="list-group list-group-flush">
+                    @foreach($filesMeta as $fieldName => $fileMeta)
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ ucfirst(str_replace('_', ' ', $fieldName)) }}: </strong>
+                                    <span>{{ $fileMeta['original_name'] ?? 'File' }}</span>
+                                    <small class="text-muted ml-2">({{ isset($fileMeta['size']) ? round($fileMeta['size'] / 1024) . ' KB' : 'Unknown size' }})</small>
+                                </div>
+                                <div>
+                                    <!-- Standard download method -->
+                                    <a href="{{ asset('storage/' . ($fileMeta['path'] ?? '')) }}" class="btn btn-primary btn-sm" download>
+                                        <i class="fa fa-download"></i> Download
+                                    </a>
+                                    
+                                    <!-- Alternative download method -->
+                                    <a href="{{ route('download.file', [$submission->id, $fieldName]) }}" class="btn btn-success btn-sm">
+                                        <i class="fa fa-file"></i> Secure Download
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+            @endif
+            
+            @php
+                // Get content for downloads
+                if (is_array($submission->content)) {
+                    $rawContent = $submission->content;
+                } else {
+                    try {
+                        $rawContent = json_decode($submission->content, true);
+                    } catch (\Exception $e) {
+                        $rawContent = [];
+                    }
+                }
+                
+                // Make sure we have an array
+                if (!is_array($rawContent)) {
+                    $rawContent = [];
+                }
+                
+                // Check specifically for a file in filedownloader field
+                $hasUploadedFile = false;
+                if (isset($rawContent['filedownloader']) && is_string($rawContent['filedownloader'])) {
+                    $hasUploadedFile = true;
+                } elseif (is_array($filesMeta) && !empty($filesMeta) && isset($filesMeta['filedownloader'])) {
+                    $hasUploadedFile = true;
+                }
+            @endphp
+            
+            @if($hasUploadedFile)
+            <div class="card rounded-0 mt-4">
+                <div class="card-header">
+                    <h5 class="card-title">Download Files</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-2">
+                        @if(isset($rawContent['filedownloader']) && is_string($rawContent['filedownloader']))
+                            <a href="{{ asset('storage/' . $rawContent['filedownloader']) }}" class="btn btn-primary" download>
+                                <i class="fa fa-download"></i> Standard Download
+                            </a>
+                        @endif
+                            
+                        <a href="{{ route('download.file', $submission->id) }}" class="btn btn-success">
+                            <i class="fa fa-file"></i> Secure Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+            @endif
         </div>
 
         <div class="col-md-4">
